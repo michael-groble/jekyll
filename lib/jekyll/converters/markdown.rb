@@ -9,6 +9,22 @@ module Jekyll
     def setup
       return if @setup
       # Set the Markdown interpreter (and Maruku self.config, if necessary)
+      
+      # If you have set some options for pandoc in _config.yml, then
+	  # we will process markdown with pandoc. (Implementing pandoc support
+	  # this way allows for graceful fallback when pandoc is not available
+	  # e.g. in github pages.)
+      if @config['pandoc']
+              begin
+                lib = 'pandoc-ruby'
+                require lib
+                STDERR.puts "#{lib} found"
+                @config['markdown'] = lib
+              rescue LoadError => ex
+                STDERR.puts "#{lib} not found, falling back to next choice."
+              end
+       end
+
       case @config['markdown']
         when 'redcarpet'
           begin
@@ -19,6 +35,15 @@ module Jekyll
             STDERR.puts '  $ [sudo] gem install redcarpet'
             raise FatalException.new("Missing dependency: redcarpet")
           end
+        when 'pandoc-ruby'
+         begin
+           require 'pandoc-ruby'
+           @pandoc_extensions = @config['pandoc']['extensions'].map { |e| e.to_sym }
+         rescue LoadError
+           STDERR.puts 'You are missing a library required for Markdown. Please run:'
+           STDERR.puts '  $ [sudo] gem install pandoc-ruby'
+           raise FatalException.new("Missing dependency: pandoc-ruby")
+         end
         when 'kramdown'
           begin
             require 'kramdown'
@@ -118,6 +143,8 @@ module Jekyll
           RDiscount.new(content, *@rdiscount_extensions).to_html
         when 'maruku'
           Maruku.new(content).to_html
+        when 'pandoc-ruby'
+          PandocRuby.new(content, *@pandoc_extensions).to_html
       end
     end
   end
